@@ -51,5 +51,13 @@ git lfs pull
 
 ## Citation
 
-If this repository is useful for your work, please cite it. A BibTeX entry will
-be added here soon.
+If this repository is useful for your work, please cite it 🙏
+
+```bibtex
+@software{sionna_scene_baker,
+  title = {Pythonic Sionna Scene Builder},
+  author = {Lyu, Hyunseung},
+  url = {https://github.com/hslyu/sionna-scene-baker},
+  year = {2026}
+}
+```

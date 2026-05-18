@@ -6,8 +6,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from pyScene.cli import add_build_options, bbox
-from pyScene.overpass import DEFAULT_OVERPASS_URL
+from src.cli import add_build_options, bbox
+from src.overpass import DEFAULT_OVERPASS_URL
 
 
 def main() -> None:

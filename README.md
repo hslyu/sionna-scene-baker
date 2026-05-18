@@ -20,7 +20,7 @@ separately through Git LFS or an external LFS link.
 
 - `build_sionna_scene.py`: Main script for users. Downloads OSM data and builds
   a Sionna-ready scene from a latitude/longitude bounding box.
-- `pyScene/`: Python-only OSM to Sionna-ready Mitsuba scene generator.
+- `src/`: Python-only OSM to Sionna-ready Mitsuba scene generator.
 - `data/`: Place-scoped inputs and generated outputs. User-generated scenes live
   under `data/<place>/`.
 - `blender/`: Optional reference-baseline utilities for converting
@@ -56,7 +56,7 @@ git lfs pull
 
 ## Build a Scene
 
-`pyScene` builds a Sionna-ready Mitsuba XML scene directly from OSM data. It
+`src` builds a Sionna-ready Mitsuba XML scene directly from OSM data. It
 does not require Blender, Blosm, or Mitsuba-Blender.
 
 Install the Python dependencies:
@@ -95,7 +95,7 @@ python3 build_sionna_scene.py \
 The equivalent package command is:
 
 ```bash
-python3 -m pyScene.cli bbox \
+python3 -m src.cli bbox \
   <lat_min> <lat_max> <lon_min> <lon_max> [terrain] \
   --out-dir data/<place>
 ```
@@ -115,13 +115,13 @@ The command writes:
 To build from an existing OSM extract without downloading from Overpass:
 
 ```bash
-python3 -m pyScene.cli build \
+python3 -m src.cli build \
   --osm data/ut/osm/map.osm \
   --out-xml data/ut/python_scene.xml \
   --out-mesh-dir data/ut/meshes_python
 ```
 
-`pyScene` currently handles:
+`src` currently handles:
 
 - OSM buildings and `building:part` volumes.
 - Multipolygon buildings with inner rings.
@@ -136,7 +136,7 @@ python3 -m pyScene.cli build \
   adjust with `--vegetation-height`.
 - Optional SRTM `.hgt` / `.hgt.gz` terrain through `--terrain`.
 
-Without `--terrain`, pyScene generates the same flat scene behavior as before:
+Without `--terrain`, `src` generates the same flat scene behavior as before:
 a four-vertex ground plane at `z = -0.8`. With `--terrain`, it samples the
 terrain tiles under `--terrain-dir`, subtracts the OSM bbox center elevation,
 uses the resulting terrain as the ground mesh, and places roads, areas, water,
@@ -187,7 +187,7 @@ reference scenes. It is not required for new scene generation.
 Compare a generated scene against a Blender-derived reference:
 
 ```bash
-python3 pyScene/compare.py \
+python3 src/compare.py \
   data/ut/ut_sionna_no_terrain.xml \
   data/ut/python_scene.xml \
   --json data/ut/python_scene_compare.json

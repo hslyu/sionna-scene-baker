@@ -1,8 +1,15 @@
 # Pythonic Sionna Scene Builder
 
-<p align="center">
-  <img src="docs/teaser_scene_comparison.png?snu-terrain" alt="SNU terrain scene comparison between a Blender-made reference and a Python-made scene" width="100%">
-</p>
+<table>
+  <tr>
+    <th>Blender-made reference</th>
+    <th>Python-made scene</th>
+  </tr>
+  <tr>
+    <td><img src="data/scene_comparison/snu/blender_terrain_scene.png" alt="SNU terrain scene generated from the Blender reference workflow"></td>
+    <td><img src="data/scene_comparison/snu/python_terrain_scene.png" alt="SNU terrain scene generated from the Python workflow"></td>
+  </tr>
+</table>
 
 This repository builds Sionna RT-ready Mitsuba XML scenes directly from OSM
 geographic bounds. The main user entry point is:

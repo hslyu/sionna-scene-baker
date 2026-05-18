@@ -1,5 +1,9 @@
 # Pythonic Sionna Scene Builder
 
+<p align="center">
+  <img src="docs/teaser_scene_comparison.png" alt="Side-by-side comparison of a Blender-made reference scene and a Python-made scene" width="100%">
+</p>
+
 This repository builds Sionna RT-ready Mitsuba XML scenes directly from OSM
 geographic bounds. The main user entry point is:
 

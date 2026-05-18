@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+
+# Local render outputs
+*_render.png
+*_paths.png
+*_diff.png
+sionna_scene_render.png
+
+# Local editor/environment files
+.DS_Store
+.idea/
+.vscode/
+.env
+.venv/
+venv/

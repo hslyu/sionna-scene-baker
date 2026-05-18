@@ -27,6 +27,29 @@ separately through Git LFS or an external LFS link.
 - `test/test_sionna_scene_propagation.py`: Smoke test that adds an in-area
   transmitter/receiver pair and computes propagation paths.
 
+## Clone and Pull Data
+
+Files under `data/` are stored with Git LFS. Install Git LFS before cloning:
+
+```bash
+git lfs install
+git clone git@github.com:hslyu/sionna-scene-baker.git
+```
+
+For an existing clone, normal pulls are enough when Git LFS is installed:
+
+```bash
+git pull
+```
+
+If the repository was cloned before Git LFS was installed, fetch the LFS data
+after installing it:
+
+```bash
+git lfs install
+git lfs pull
+```
+
 ## Build a Scene
 
 `pyScene` builds a Sionna-ready Mitsuba XML scene directly from OSM data. It

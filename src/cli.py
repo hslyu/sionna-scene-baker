@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import argparse
 import shutil
+import struct
 from pathlib import Path
 
-from .geometry import build_scene_meshes
+from .geometry import Mesh, add_terrain_ground, build_scene_meshes
 from .mitsuba_xml import write_scene_xml
 from .osm_reader import read_osm
 from .overpass import DEFAULT_OVERPASS_URL, download_osm
@@ -45,6 +46,17 @@ def build_scene(
             center_lat=(south + north) * 0.5,
             center_lon=(west + east) * 0.5,
         )
+        reference_ground = mesh_dir.parent / "meshes_sionna_terrain" / "terrain_ground.ply"
+        if reference_ground.exists():
+            terrain.base_elevation = terrain_ground_mean_z(
+                osm,
+                projection,
+                terrain,
+                ground_z=ground_z,
+                min_ground_half_width=min_ground_half_width,
+                grid_size=terrain_grid_size,
+            ) - ply_mean_z(reference_ground)
+            print(f"Aligned terrain ground height to {reference_ground}")
 
     if mesh_dir.exists() and clean:
         shutil.rmtree(mesh_dir)
@@ -72,6 +84,62 @@ def build_scene(
     for name in sorted(meshes):
         mesh = meshes[name]
         print(f"  {name}: vertices={len(mesh.vertices)} faces={len(mesh.faces)}")
+
+
+def terrain_ground_mean_z(
+    osm,
+    projection,
+    terrain: TerrainModel,
+    *,
+    ground_z: float,
+    min_ground_half_width: float,
+    grid_size: int,
+) -> float:
+    mesh = Mesh("terrain_ground_probe")
+    add_terrain_ground(
+        mesh,
+        osm,
+        projection,
+        terrain,
+        z=ground_z,
+        min_half_width=min_ground_half_width,
+        grid_size=grid_size,
+    )
+    return sum(vertex[2] for vertex in mesh.vertices) / len(mesh.vertices)
+
+
+def ply_mean_z(path: Path) -> float:
+    with path.open("rb") as f:
+        header = []
+        while True:
+            line = f.readline()
+            if not line:
+                raise ValueError(f"{path} ended before PLY header finished")
+            text = line.decode("ascii").strip()
+            header.append(text)
+            if text == "end_header":
+                break
+
+        vertex_count = 0
+        vertex_types = []
+        in_vertex = False
+        for line in header:
+            parts = line.split()
+            if parts[:2] == ["element", "vertex"]:
+                vertex_count = int(parts[2])
+                in_vertex = True
+            elif parts and parts[0] == "element":
+                in_vertex = False
+            elif in_vertex and parts[:1] == ["property"]:
+                vertex_types.append(parts[1])
+
+        formats = {"float": "f", "float32": "f", "double": "d", "float64": "d"}
+        fmt = "<" + "".join(formats.get(t, "f") for t in vertex_types)
+        step = struct.calcsize(fmt)
+        total_z = 0.0
+        for _ in range(vertex_count):
+            total_z += struct.unpack(fmt, f.read(step))[2]
+    return total_z / vertex_count
 
 
 def build(args: argparse.Namespace) -> None:

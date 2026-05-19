@@ -84,8 +84,7 @@ class TerrainModel:
         tiles = [HgtTile.read(tile) for tile in sorted(path.glob("*.hgt*"))]
         if not tiles:
             raise FileNotFoundError(f"No .hgt or .hgt.gz files found in {path}")
-        model = cls(tiles, projection, 0.0)
-        return cls(tiles, projection, model.elevation(center_lat, center_lon))
+        return cls(tiles, projection, 0.0)
 
     def elevation(self, lat: float, lon: float) -> float:
         for tile in self.tiles:

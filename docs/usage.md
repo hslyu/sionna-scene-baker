@@ -84,9 +84,11 @@ python3 -m src.cli build \
 
 Without `--terrain`, `src` generates the same flat scene behavior as before:
 a four-vertex ground plane at `z = -0.8`. With `--terrain`, it samples the
-terrain tiles under `--terrain-dir`, subtracts the OSM bbox center elevation,
-uses the resulting terrain as the ground mesh, and places roads, areas, water,
-vegetation, and building bases on that terrain.
+terrain tiles under `--terrain-dir`, uses the resulting terrain as the ground
+mesh, and places roads, areas, water, vegetation, and building bases on that
+terrain. If a Blender-derived `meshes_sionna_terrain/terrain_ground.ply`
+reference is available next to the output mesh directory, the Python terrain is
+vertically aligned to that reference ground datum.
 Terrain-mode vegetation and forest polygons are clipped to the OSM import
 bounds and draped over terrain with subdivided polygon triangles, so large OSM
 landuse polygons do not spill far outside the requested scene or disappear

@@ -9,7 +9,122 @@ import struct
 from dataclasses import dataclass
 from pathlib import Path
 
+import requests
+
 from .projection import LocalProjection
+
+
+DEFAULT_HGT_URL_TEMPLATE = "https://s3.amazonaws.com/elevation-tiles-prod/skadi/{lat_dir}/{tile}.hgt.gz"
+
+
+def ensure_hgt_tiles(
+    path: Path,
+    *,
+    south: float,
+    west: float,
+    north: float,
+    east: float,
+    projection: LocalProjection,
+    margin_m: float = 0.0,
+    url_template: str = DEFAULT_HGT_URL_TEMPLATE,
+    timeout: int = 60,
+) -> list[Path]:
+    """Download missing HGT tiles needed for a geographic bbox."""
+    path.mkdir(parents=True, exist_ok=True)
+    tile_names = required_hgt_tile_names(
+        south,
+        west,
+        north,
+        east,
+        projection=projection,
+        margin_m=margin_m,
+    )
+    paths = []
+    for tile_name in tile_names:
+        tile_path = path / f"{tile_name}.hgt.gz"
+        paths.append(tile_path)
+        if tile_path.exists() or tile_path.with_suffix("").exists():
+            continue
+        lat_dir = tile_name[:3]
+        url = url_template.format(lat_dir=lat_dir, tile=tile_name)
+        print(f"Downloading terrain tile {tile_name} to {tile_path}")
+        response = requests.get(
+            url,
+            headers={"User-Agent": "pyscene-sionna-builder/0.1"},
+            timeout=timeout,
+        )
+        response.raise_for_status()
+        tmp_path = tile_path.with_suffix(tile_path.suffix + ".tmp")
+        tmp_path.write_bytes(response.content)
+        tmp_path.replace(tile_path)
+    return paths
+
+
+def required_hgt_tile_names(
+    south: float,
+    west: float,
+    north: float,
+    east: float,
+    *,
+    projection: LocalProjection,
+    margin_m: float = 0.0,
+) -> list[str]:
+    south, west, north, east = terrain_bounds_with_margin(
+        south,
+        west,
+        north,
+        east,
+        projection=projection,
+        margin_m=margin_m,
+    )
+    return [
+        hgt_tile_name(lat_min, lon_min)
+        for lat_min in tile_floor_range(south, north)
+        for lon_min in tile_floor_range(west, east)
+    ]
+
+
+def terrain_bounds_with_margin(
+    south: float,
+    west: float,
+    north: float,
+    east: float,
+    *,
+    projection: LocalProjection,
+    margin_m: float,
+) -> tuple[float, float, float, float]:
+    if margin_m <= 0.0:
+        return south, west, north, east
+
+    projected = [
+        projection.project(lat, lon)
+        for lat in (south, north)
+        for lon in (west, east)
+    ]
+    xs = [point[0] for point in projected]
+    ys = [point[1] for point in projected]
+    corners = [
+        projection.unproject(x, y)
+        for x in (min(xs) - margin_m, max(xs) + margin_m)
+        for y in (min(ys) - margin_m, max(ys) + margin_m)
+    ]
+    lats = [south, north, *(lat for lat, _ in corners)]
+    lons = [west, east, *(lon for _, lon in corners)]
+    return min(lats), min(lons), max(lats), max(lons)
+
+
+def tile_floor_range(start: float, stop: float) -> range:
+    first = math.floor(start)
+    last = math.floor(stop)
+    if stop > start and math.isclose(stop, float(last), abs_tol=1e-12):
+        last -= 1
+    return range(first, last + 1)
+
+
+def hgt_tile_name(lat_min: int, lon_min: int) -> str:
+    lat_prefix = "N" if lat_min >= 0 else "S"
+    lon_prefix = "E" if lon_min >= 0 else "W"
+    return f"{lat_prefix}{abs(lat_min):02d}{lon_prefix}{abs(lon_min):03d}"
 
 
 @dataclass(frozen=True)

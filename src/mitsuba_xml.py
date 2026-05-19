@@ -16,6 +16,7 @@ SHAPE_IDS = {
     "map_osm_water": "py_water",
     "map_osm_forest": "py_forest",
     "map_osm_vegetation": "py_vegetation",
+    "map_osm_areas_park": "py_areas_park",
     "map_osm_areas_pedestrian": "py_areas_pedestrian",
     "map_osm_areas_steps": "py_areas_steps",
     "map_osm_roads_primary": "py_roads_primary",
@@ -32,6 +33,10 @@ SHAPE_IDS = {
     "map_osm_paths_steps": "py_paths_steps",
     "Plane": "py_ground",
 }
+
+
+def use_face_normals(mesh_name: str) -> bool:
+    return "building" in mesh_name or "roof" in mesh_name
 
 
 def write_scene_xml(xml_path: Path, mesh_dir: Path, meshes: dict[str, Mesh]) -> None:
@@ -51,7 +56,10 @@ def write_scene_xml(xml_path: Path, mesh_dir: Path, meshes: dict[str, Mesh]) -> 
             "name": "filename",
             "value": Path(os.path.relpath(mesh_path, xml_path.parent)).as_posix(),
         })
-        ET.SubElement(shape, "boolean", {"name": "face_normals", "value": "true"})
+        ET.SubElement(shape, "boolean", {
+            "name": "face_normals",
+            "value": str(use_face_normals(mesh_name)).lower(),
+        })
         ET.SubElement(shape, "ref", {
             "id": f"mat-{material_for_mesh(mesh_name)}",
             "name": "bsdf",

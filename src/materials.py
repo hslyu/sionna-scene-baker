@@ -38,6 +38,15 @@ MATERIALS = {
         "xpd_coefficient": 0.10,
         "color": "0.007000 0.558000 0.005000",
     },
+    "park": {
+        "plugin": "radio-material",
+        "relative_permittivity": 2.00,
+        "conductivity": 0.020,
+        "thickness": 0.10,
+        "scattering_coefficient": 0.30,
+        "xpd_coefficient": 0.00,
+        "color": "0.090000 0.520000 0.120000",
+    },
     "water": {
         "plugin": "radio-material",
         "relative_permittivity": 80.0,
@@ -62,6 +71,8 @@ def material_for_mesh(mesh_name: str) -> str:
         return "water"
     if "vegetation" in mesh_name or "forest" in mesh_name:
         return "vegetation"
+    if "areas_park" in mesh_name:
+        return "park"
     if "road" in mesh_name or "path" in mesh_name or "areas_" in mesh_name:
         return "road"
     if "roof" in mesh_name:

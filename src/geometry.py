@@ -19,6 +19,7 @@ except ImportError:  # pragma: no cover
 Point2 = tuple[float, float]
 Point3 = tuple[float, float, float]
 Face = tuple[int, int, int]
+RoadCutout = tuple[Point2, Point2, float, tuple[float, float, float, float]]
 
 ROAD_WIDTHS = {
     "primary": 12.0,
@@ -35,8 +36,10 @@ ROAD_WIDTHS = {
     "unclassified": 6.0,
     "track": 3.0,
     "rest_area": 4.0,
+    "construction": 6.0,
     "pedestrian": 5.0,
     "footway": 2.0,
+    "bridleway": 2.5,
     "cycleway": 2.5,
     "steps": 2.0,
     "path": 2.0,
@@ -57,8 +60,10 @@ ROAD_GROUPS = {
     "unclassified": "roads_unclassified",
     "track": "roads_track",
     "rest_area": "roads_service",
+    "construction": "roads_service",
     "pedestrian": "roads_pedestrian",
     "footway": "paths_footway",
+    "bridleway": "paths_footway",
     "cycleway": "paths_cycleway",
     "steps": "paths_steps",
     "path": "paths_footway",
@@ -123,6 +128,7 @@ def build_scene_meshes(
         "map_osm_forest": Mesh("map_osm_forest"),
         "map_osm_vegetation": Mesh("map_osm_vegetation"),
         "map_osm_areas_pedestrian": Mesh("map_osm_areas_pedestrian"),
+        "map_osm_areas_park": Mesh("map_osm_areas_park"),
         "map_osm_areas_steps": Mesh("map_osm_areas_steps"),
         "Plane": Mesh("Plane"),
     }
@@ -131,6 +137,7 @@ def build_scene_meshes(
 
     clip_bounds = osm_clip_bounds(osm, projection)
     ground_bounds = ground_square_bounds(osm, projection, min_ground_half_width)
+    road_cutouts = road_cutout_segments(osm, projection)
     parent_part_base_heights = building_part_base_heights(osm, projection)
     building_way_ids: set[str] = set()
     for relation in osm.relations:
@@ -157,6 +164,7 @@ def build_scene_meshes(
                     terrain,
                     ground_bounds,
                     terrain_grid_size,
+                    road_cutouts,
                 )
         elif is_vegetation(relation.tags):
             for polygon, holes in relation_polygons:
@@ -166,6 +174,20 @@ def build_scene_meshes(
                     vegetation_z,
                     vegetation_height,
                     clip_bounds,
+                    holes,
+                    terrain,
+                    ground_bounds,
+                    terrain_grid_size,
+                    road_cutouts,
+                )
+        elif is_park_area(relation.tags):
+            for polygon, holes in relation_polygons:
+                add_clipped_park_area_polygon(
+                    meshes["map_osm_areas_park"],
+                    polygon,
+                    area_z,
+                    clip_bounds,
+                    road_cutouts,
                     holes,
                     terrain,
                     ground_bounds,
@@ -192,6 +214,7 @@ def build_scene_meshes(
                 terrain=terrain,
                 grid_bounds=ground_bounds,
                 grid_size=terrain_grid_size,
+                road_cutouts=road_cutouts,
             )
         elif is_vegetation(way.tags) and way.is_closed:
             add_clipped_vegetation_polygon(
@@ -200,6 +223,18 @@ def build_scene_meshes(
                 vegetation_z,
                 vegetation_height,
                 clip_bounds,
+                terrain=terrain,
+                grid_bounds=ground_bounds,
+                grid_size=terrain_grid_size,
+                road_cutouts=road_cutouts,
+            )
+        elif is_park_area(way.tags) and way.is_closed:
+            add_clipped_park_area_polygon(
+                meshes["map_osm_areas_park"],
+                clean_ring(points),
+                area_z,
+                clip_bounds,
+                road_cutouts,
                 terrain=terrain,
                 grid_bounds=ground_bounds,
                 grid_size=terrain_grid_size,
@@ -236,11 +271,18 @@ def is_water(tags: dict[str, str]) -> bool:
 
 
 def is_vegetation(tags: dict[str, str]) -> bool:
-    return tags.get("natural") in {"tree", "tree_row", "shrubbery", "heath"} or tags.get("landuse") == "grass"
+    return (
+        tags.get("natural") in {"tree", "tree_row", "shrubbery", "heath", "grassland", "scrub"}
+        or tags.get("landuse") in {"grass", "shrubs", "flowerbed"}
+    )
 
 
 def is_forest(tags: dict[str, str]) -> bool:
     return tags.get("landuse") == "forest" or tags.get("natural") == "wood"
+
+
+def is_park_area(tags: dict[str, str]) -> bool:
+    return tags.get("leisure") in {"park", "garden"}
 
 
 def is_pedestrian_area(way: Way) -> bool:
@@ -270,6 +312,53 @@ def clean_ring(points: list[Point2]) -> list[Point2]:
 
 def close(a: Point2, b: Point2, eps: float = 1e-6) -> bool:
     return abs(a[0] - b[0]) <= eps and abs(a[1] - b[1]) <= eps
+
+
+def road_cutout_segments(osm: OsmData, projection: LocalProjection) -> list[RoadCutout]:
+    cutouts = []
+    for way in osm.ways.values():
+        highway = way.tags.get("highway")
+        if highway not in ROAD_GROUPS:
+            continue
+        points = way_points(osm, way, projection)
+        radius = ROAD_WIDTHS[highway] * 0.5 + 0.5
+        for p0, p1 in zip(points, points[1:]):
+            if close(p0, p1):
+                continue
+            min_x = min(p0[0], p1[0]) - radius
+            min_y = min(p0[1], p1[1]) - radius
+            max_x = max(p0[0], p1[0]) + radius
+            max_y = max(p0[1], p1[1]) + radius
+            cutouts.append((p0, p1, radius, (min_x, min_y, max_x, max_y)))
+    return cutouts
+
+
+def road_cutout_holes(polygon: list[Point2], road_cutouts: list[RoadCutout]) -> list[list[Point2]]:
+    polygon_bounds = bounds_of_points(polygon)
+    holes = []
+    for p0, p1, radius, cutout_bounds in road_cutouts:
+        if not bounds_overlap(polygon_bounds, cutout_bounds):
+            continue
+        hole = road_cutout_rectangle(p0, p1, radius)
+        if all(point_in_polygon(point, polygon) for point in hole):
+            holes.append(hole)
+    return holes
+
+
+def road_cutout_rectangle(p0: Point2, p1: Point2, radius: float) -> list[Point2]:
+    dx = p1[0] - p0[0]
+    dy = p1[1] - p0[1]
+    length = math.hypot(dx, dy)
+    if length <= 0.0:
+        return []
+    nx = -dy / length * radius
+    ny = dx / length * radius
+    return [
+        (p0[0] + nx, p0[1] + ny),
+        (p1[0] + nx, p1[1] + ny),
+        (p1[0] - nx, p1[1] - ny),
+        (p0[0] - nx, p0[1] - ny),
+    ]
 
 
 def add_building(
@@ -428,6 +517,71 @@ def add_flat_polygon(
         mesh.add_triangle(point3(a, z, terrain), point3(b, z, terrain), point3(c, z, terrain))
 
 
+def add_clipped_park_area_polygon(
+    mesh: Mesh,
+    polygon: list[Point2],
+    z: float,
+    bounds: tuple[float, float, float, float],
+    road_cutouts: list[RoadCutout],
+    holes: list[list[Point2]] | None = None,
+    terrain: TerrainModel | None = None,
+    grid_bounds: tuple[float, float, float, float] | None = None,
+    grid_size: int = 0,
+) -> None:
+    clipped = clip_polygon_to_bounds(polygon, bounds)
+    if len(clipped) < 3:
+        return
+    kept_holes = [
+        clean_ring(hole)
+        for hole in (holes or [])
+        if len(clean_ring(hole)) >= 3 and all(point_in_bounds(point, bounds) for point in hole)
+    ]
+    add_park_area_polygon(mesh, clipped, z, road_cutouts, kept_holes, terrain, grid_bounds, grid_size)
+
+
+def add_park_area_polygon(
+    mesh: Mesh,
+    polygon: list[Point2],
+    z: float,
+    road_cutouts: list[RoadCutout],
+    holes: list[list[Point2]],
+    terrain: TerrainModel | None,
+    grid_bounds: tuple[float, float, float, float] | None,
+    grid_size: int,
+) -> None:
+    ring = ensure_ccw(clean_ring(polygon))
+    clean_holes = [ensure_cw(clean_ring(hole)) for hole in holes if len(clean_ring(hole)) >= 3]
+    polygon_bounds = bounds_of_points(ring)
+    cutouts = [
+        cutout for cutout in road_cutouts
+        if bounds_overlap(polygon_bounds, cutout[3])
+    ]
+    if not cutouts and terrain is None:
+        add_flat_polygon(mesh, ring, z, clean_holes)
+        return
+
+    max_edge = park_triangle_max_edge(ring, grid_bounds, grid_size)
+    for triangle in triangulate_polygon(ring, clean_holes):
+        for a, b, c in subdivide_triangle(*triangle, max_edge=max_edge):
+            centroid = triangle_centroid(a, b, c)
+            if any(point_near_cutout(centroid, cutout) for cutout in cutouts):
+                continue
+            mesh.add_triangle(point3(a, z, terrain), point3(b, z, terrain), point3(c, z, terrain))
+
+
+def park_triangle_max_edge(
+    polygon: list[Point2],
+    grid_bounds: tuple[float, float, float, float] | None,
+    grid_size: int,
+) -> float:
+    if grid_bounds is None:
+        min_x, min_y, max_x, max_y = bounds_of_points(polygon)
+    else:
+        min_x, min_y, max_x, max_y = grid_bounds
+    terrain_edge = max(max_x - min_x, max_y - min_y) / max(2, grid_size - 1)
+    return min(terrain_edge, 5.0)
+
+
 def add_vegetation_polygon(
     mesh: Mesh,
     polygon: list[Point2],
@@ -460,6 +614,7 @@ def add_clipped_vegetation_polygon(
     terrain: TerrainModel | None = None,
     grid_bounds: tuple[float, float, float, float] | None = None,
     grid_size: int = 0,
+    road_cutouts: list[RoadCutout] | None = None,
 ) -> None:
     clipped = clip_polygon_to_bounds(polygon, bounds)
     if len(clipped) < 3:
@@ -469,6 +624,8 @@ def add_clipped_vegetation_polygon(
         for hole in (holes or [])
         if len(clean_ring(hole)) >= 3 and all(point_in_bounds(point, bounds) for point in hole)
     ]
+    if road_cutouts:
+        kept_holes = [*kept_holes, *road_cutout_holes(clipped, road_cutouts)]
     if terrain is not None and grid_bounds is not None:
         add_draped_vegetation_polygon(mesh, clipped, z, height, kept_holes, terrain, grid_bounds, grid_size)
         return
@@ -714,6 +871,41 @@ def ground_square_bounds(
 def point_in_bounds(point: Point2, bounds: tuple[float, float, float, float]) -> bool:
     min_x, min_y, max_x, max_y = bounds
     return min_x <= point[0] <= max_x and min_y <= point[1] <= max_y
+
+
+def bounds_of_points(points: list[Point2]) -> tuple[float, float, float, float]:
+    xs = [point[0] for point in points]
+    ys = [point[1] for point in points]
+    return min(xs), min(ys), max(xs), max(ys)
+
+
+def bounds_overlap(
+    a: tuple[float, float, float, float],
+    b: tuple[float, float, float, float],
+) -> bool:
+    return a[0] <= b[2] and a[2] >= b[0] and a[1] <= b[3] and a[3] >= b[1]
+
+
+def triangle_centroid(a: Point2, b: Point2, c: Point2) -> Point2:
+    return (a[0] + b[0] + c[0]) / 3.0, (a[1] + b[1] + c[1]) / 3.0
+
+
+def point_near_cutout(point: Point2, cutout: RoadCutout) -> bool:
+    if not point_in_bounds(point, cutout[3]):
+        return False
+    return point_segment_distance(point, cutout[0], cutout[1]) <= cutout[2]
+
+
+def point_segment_distance(point: Point2, a: Point2, b: Point2) -> float:
+    dx = b[0] - a[0]
+    dy = b[1] - a[1]
+    length_sq = dx * dx + dy * dy
+    if length_sq <= 0.0:
+        return math.hypot(point[0] - a[0], point[1] - a[1])
+    t = ((point[0] - a[0]) * dx + (point[1] - a[1]) * dy) / length_sq
+    t = min(max(t, 0.0), 1.0)
+    closest = a[0] + t * dx, a[1] + t * dy
+    return math.hypot(point[0] - closest[0], point[1] - closest[1])
 
 
 def point_in_polygon(point: Point2, polygon: list[Point2]) -> bool:

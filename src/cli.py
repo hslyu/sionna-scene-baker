@@ -7,13 +7,24 @@ import shutil
 import struct
 from pathlib import Path
 
-from .geometry import Mesh, add_terrain_ground, build_scene_meshes
+from .geometry import (
+    ROAD_GROUPS,
+    Mesh,
+    add_terrain_ground,
+    build_scene_meshes,
+    is_building,
+    is_forest,
+    is_park_area,
+    is_pedestrian_area,
+    is_vegetation,
+    is_water,
+)
 from .mitsuba_xml import write_scene_xml
 from .osm_reader import read_osm
 from .overpass import DEFAULT_OVERPASS_URL, download_osm
 from .ply import write_binary_ply
 from .projection import projection_from_bounds
-from .terrain import TerrainModel
+from .terrain import TerrainModel, ensure_hgt_tiles
 
 
 def build_scene(
@@ -39,12 +50,21 @@ def build_scene(
     terrain = None
     if terrain_enabled:
         terrain_dir = terrain_dir or osm_path.parent.parent / "terrain"
-        south, west, north, east = osm.bounds
+        south, west, north, east = terrain_download_bounds(osm)
+        ensure_hgt_tiles(
+            terrain_dir,
+            south=south,
+            west=west,
+            north=north,
+            east=east,
+            projection=projection,
+            margin_m=min_ground_half_width,
+        )
         terrain = TerrainModel.from_directory(
             terrain_dir,
             projection,
-            center_lat=(south + north) * 0.5,
-            center_lon=(west + east) * 0.5,
+            center_lat=(osm.bounds[0] + osm.bounds[2]) * 0.5,
+            center_lon=(osm.bounds[1] + osm.bounds[3]) * 0.5,
         )
         reference_ground = mesh_dir.parent / "meshes_sionna_terrain" / "terrain_ground.ply"
         if reference_ground.exists():
@@ -106,6 +126,46 @@ def terrain_ground_mean_z(
         grid_size=grid_size,
     )
     return sum(vertex[2] for vertex in mesh.vertices) / len(mesh.vertices)
+
+
+def terrain_download_bounds(osm) -> tuple[float, float, float, float]:
+    lats = [osm.bounds[0], osm.bounds[2]]
+    lons = [osm.bounds[1], osm.bounds[3]]
+
+    def add_way_nodes(way) -> None:
+        for ref in way.node_refs:
+            node = osm.nodes.get(ref)
+            if node is not None:
+                lats.append(node.lat)
+                lons.append(node.lon)
+
+    for relation in osm.relations:
+        if (
+            is_building(relation.tags)
+            or is_water(relation.tags)
+            or is_forest(relation.tags)
+            or is_vegetation(relation.tags)
+            or is_park_area(relation.tags)
+        ):
+            for member in relation.members:
+                if member.member_type == "way":
+                    way = osm.ways.get(member.ref)
+                    if way is not None:
+                        add_way_nodes(way)
+
+    for way in osm.ways.values():
+        if (
+            is_building(way.tags)
+            or is_water(way.tags)
+            or is_forest(way.tags)
+            or is_vegetation(way.tags)
+            or is_park_area(way.tags)
+            or is_pedestrian_area(way)
+            or way.tags.get("highway") in ROAD_GROUPS
+        ):
+            add_way_nodes(way)
+
+    return min(lats), min(lons), max(lats), max(lons)
 
 
 def ply_mean_z(path: Path) -> float:

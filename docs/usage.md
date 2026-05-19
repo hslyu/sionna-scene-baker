@@ -28,8 +28,8 @@ python3 build_sionna_scene.py \
 ```
 
 Generate a terrain-enabled scene by adding the optional `terrain` argument.
-Terrain mode expects SRTM `.hgt` or `.hgt.gz` tiles in `data/<place>/terrain`
-unless `--terrain-dir` is provided:
+Terrain mode downloads missing SRTM `.hgt.gz` tiles into
+`data/<place>/terrain` unless `--terrain-dir` is provided:
 
 ```bash
 python3 build_sionna_scene.py \
@@ -78,15 +78,17 @@ python3 -m src.cli build \
 - `building=roof` as open canopy roof surfaces, without false blocking walls.
 - OSM roads and paths, including `width=*` where available.
 - Water, pedestrian areas, and ground.
+- Park and garden polygons as flat area surfaces.
 - Vegetation and forest polygons as shallow 0.5 m foliage volumes by default;
   adjust with `--vegetation-height`.
 - Optional SRTM `.hgt` / `.hgt.gz` terrain through `--terrain`.
 
 Without `--terrain`, `src` generates the same flat scene behavior as before:
-a four-vertex ground plane at `z = -0.8`. With `--terrain`, it samples the
-terrain tiles under `--terrain-dir`, uses the resulting terrain as the ground
-mesh, and places roads, areas, water, vegetation, and building bases on that
-terrain. If a Blender-derived `meshes_sionna_terrain/terrain_ground.ply`
+a four-vertex ground plane at `z = -0.8`. With `--terrain`, it downloads any
+missing terrain tiles under `--terrain-dir`, samples them, uses the resulting
+terrain as the ground mesh, and places roads, areas, water, vegetation, and
+building bases on that terrain. If a Blender-derived
+`meshes_sionna_terrain/terrain_ground.ply`
 reference is available next to the output mesh directory, the Python terrain is
 vertically aligned to that reference ground datum.
 Terrain-mode vegetation and forest polygons are clipped to the OSM import

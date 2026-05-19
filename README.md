@@ -4,12 +4,12 @@
   <tr>
     <th>Blender-made reference</th>
     <th>Python-made scene</th>
-    <th>Residual plot</th>
+    <th>Coordinate diagnostics</th>
   </tr>
   <tr>
     <td><img src="data/scene_comparison/snu/blender_terrain_scene.png" alt="SNU terrain scene generated from the Blender reference workflow"></td>
     <td><img src="data/scene_comparison/snu/python_terrain_scene.png" alt="SNU terrain scene generated from the Python workflow"></td>
-    <td><img src="data/scene_comparison/snu/terrain_scene_residual_plot.png" alt="Signed and absolute residual plot comparing the Python and Blender terrain teaser images"></td>
+    <td><img src="data/scene_comparison/snu/terrain_scene_coordinate_diagnostics.png" alt="Coordinate-space footprint overlay and roof-height residuals comparing the Python and Blender terrain scenes"></td>
   </tr>
 </table>
 

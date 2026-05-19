@@ -4,12 +4,12 @@
   <tr>
     <th>Blender-made reference</th>
     <th>Python-made scene</th>
-    <th>3D polygon residual</th>
+    <th>Rendered difference</th>
   </tr>
   <tr>
     <td><img src="data/scene_comparison/snu/blender_terrain_scene.png" alt="SNU terrain scene generated from the Blender reference workflow"></td>
     <td><img src="data/scene_comparison/snu/python_terrain_scene.png" alt="SNU terrain scene generated from the Python workflow"></td>
-    <td><img src="data/scene_comparison/snu/terrain_scene_coordinate_diagnostics.png" alt="3D roof polygon residuals comparing the Python and Blender terrain scenes"></td>
+    <td><img src="data/scene_comparison/snu/terrain_render_difference.png" alt="Rendered pixel-level difference between the Blender reference and Python terrain scenes"></td>
   </tr>
 </table>
 
@@ -58,7 +58,7 @@ If this repository is useful for your work, please cite it 🙏
 ```bibtex
 @software{sionna_scene_baker,
   title = {Pythonic Sionna Scene Builder},
-  author = {Lyu, Hyunseung},
+  author = {Lyu, Hyeonsu},
   url = {https://github.com/hslyu/sionna-scene-baker},
   year = {2026}
 }

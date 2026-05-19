@@ -4,12 +4,12 @@
   <tr>
     <th>Blender-made reference</th>
     <th>Python-made scene</th>
-    <th>Coordinate diagnostics</th>
+    <th>3D polygon residual</th>
   </tr>
   <tr>
     <td><img src="data/scene_comparison/snu/blender_terrain_scene.png" alt="SNU terrain scene generated from the Blender reference workflow"></td>
     <td><img src="data/scene_comparison/snu/python_terrain_scene.png" alt="SNU terrain scene generated from the Python workflow"></td>
-    <td><img src="data/scene_comparison/snu/terrain_scene_coordinate_diagnostics.png" alt="Coordinate-space footprint overlay and roof-height residuals comparing the Python and Blender terrain scenes"></td>
+    <td><img src="data/scene_comparison/snu/terrain_scene_coordinate_diagnostics.png" alt="3D roof polygon residuals comparing the Python and Blender terrain scenes"></td>
   </tr>
 </table>
 

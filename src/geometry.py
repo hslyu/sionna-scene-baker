@@ -62,6 +62,11 @@ ROAD_GROUPS = {
     "rest_area": "roads_service",
     "construction": "roads_service",
     "pedestrian": "roads_pedestrian",
+    "footway": "paths_footway",
+    "bridleway": "paths_footway",
+    "cycleway": "paths_cycleway",
+    "steps": "paths_steps",
+    "path": "paths_footway",
 }
 
 LEVEL_HEIGHT = 3.0
@@ -241,8 +246,6 @@ def build_scene_meshes(
             target = "map_osm_areas_steps" if way.tags.get("highway") == "steps" else "map_osm_areas_pedestrian"
             add_flat_polygon(meshes[target], clean_ring(points), area_z, terrain=terrain)
         elif way.tags.get("highway") in ROAD_GROUPS:
-            if is_campus_circulation_detail(way.tags):
-                continue
             group = f"map_osm_{ROAD_GROUPS[way.tags['highway']]}"
             width = parse_meters(way.tags.get("width"), ROAD_WIDTHS[way.tags["highway"]])
             add_line_strip(
@@ -294,22 +297,7 @@ def is_park_area(tags: dict[str, str]) -> bool:
 
 
 def is_pedestrian_area(way: Way) -> bool:
-    return (
-        way.is_closed
-        and way.tags.get("highway") in {"pedestrian", "steps"}
-        and way.tags.get("area") == "yes"
-        and "name" in way.tags
-    )
-
-
-def is_campus_circulation_detail(tags: dict[str, str]) -> bool:
-    return (
-        tags.get("service") == "parking_aisle"
-        or (
-            tags.get("highway") in {"living_street", "service"}
-            and tags.get("name") in {"Inner Campus Circle", "Inner Campus Drive"}
-        )
-    )
+    return way.is_closed and way.tags.get("highway") in {"pedestrian", "steps"} and way.tags.get("area") == "yes"
 
 
 def way_points(osm: OsmData, way: Way, projection: LocalProjection) -> list[Point2]:
@@ -342,8 +330,6 @@ def road_cutout_segments(osm: OsmData, projection: LocalProjection) -> list[Road
     for way in osm.ways.values():
         highway = way.tags.get("highway")
         if highway not in ROAD_GROUPS:
-            continue
-        if is_campus_circulation_detail(way.tags):
             continue
         points = way_points(osm, way, projection)
         radius = ROAD_WIDTHS[highway] * 0.5 + 0.5

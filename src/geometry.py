@@ -137,6 +137,9 @@ def build_scene_meshes(
 
     clip_bounds = osm_clip_bounds(osm, projection)
     ground_bounds = ground_square_bounds(osm, projection, min_ground_half_width)
+    road_max_segment_length = None
+    if terrain is not None:
+        road_max_segment_length = terrain_aligned_max_edge(ground_bounds, terrain_grid_size)
     road_cutouts = road_cutout_segments(osm, projection)
     parent_part_base_heights = building_part_base_heights(osm, projection)
     building_way_ids: set[str] = set()
@@ -245,7 +248,15 @@ def build_scene_meshes(
         elif way.tags.get("highway") in ROAD_GROUPS:
             group = f"map_osm_{ROAD_GROUPS[way.tags['highway']]}"
             width = parse_meters(way.tags.get("width"), ROAD_WIDTHS[way.tags["highway"]])
-            add_line_strip(meshes[group], points, width=width, z=road_z, closed=way.is_closed, terrain=terrain)
+            add_line_strip(
+                meshes[group],
+                points,
+                width=width,
+                z=road_z,
+                closed=way.is_closed,
+                terrain=terrain,
+                max_segment_length=road_max_segment_length,
+            )
 
     if terrain is None:
         add_ground(meshes["Plane"], osm, projection, z=ground_z, min_half_width=min_ground_half_width)
@@ -577,7 +588,12 @@ def park_triangle_max_edge(
     if grid_bounds is None:
         min_x, min_y, max_x, max_y = bounds_of_points(polygon)
     else:
-        min_x, min_y, max_x, max_y = grid_bounds
+        return terrain_aligned_max_edge(grid_bounds, grid_size)
+    return terrain_aligned_max_edge((min_x, min_y, max_x, max_y), grid_size)
+
+
+def terrain_aligned_max_edge(bounds: tuple[float, float, float, float], grid_size: int) -> float:
+    min_x, min_y, max_x, max_y = bounds
     terrain_edge = max(max_x - min_x, max_y - min_y) / max(2, grid_size - 1)
     return min(terrain_edge, 5.0)
 
@@ -982,6 +998,7 @@ def add_line_strip(
     z: float,
     closed: bool = False,
     terrain: TerrainModel | None = None,
+    max_segment_length: float | None = None,
 ) -> None:
     clean = clean_ring(points) if closed else points
     if len(clean) < 2:
@@ -996,12 +1013,20 @@ def add_line_strip(
             continue
         nx = -dy / length * half
         ny = dx / length * half
-        a = point3((p0[0] + nx, p0[1] + ny), z, terrain)
-        b = point3((p1[0] + nx, p1[1] + ny), z, terrain)
-        c = point3((p1[0] - nx, p1[1] - ny), z, terrain)
-        d = point3((p0[0] - nx, p0[1] - ny), z, terrain)
-        mesh.add_triangle(a, b, c)
-        mesh.add_triangle(a, c, d)
+        steps = 1
+        if max_segment_length is not None and max_segment_length > 0.0:
+            steps = max(1, math.ceil(length / max_segment_length))
+        for step in range(steps):
+            t0 = step / steps
+            t1 = (step + 1) / steps
+            q0 = (p0[0] + dx * t0, p0[1] + dy * t0)
+            q1 = (p0[0] + dx * t1, p0[1] + dy * t1)
+            a = point3((q0[0] + nx, q0[1] + ny), z, terrain)
+            b = point3((q1[0] + nx, q1[1] + ny), z, terrain)
+            c = point3((q1[0] - nx, q1[1] - ny), z, terrain)
+            d = point3((q0[0] - nx, q0[1] - ny), z, terrain)
+            mesh.add_triangle(a, b, c)
+            mesh.add_triangle(a, c, d)
 
 
 def add_ground(mesh: Mesh, osm: OsmData, projection: LocalProjection, *, z: float, min_half_width: float) -> None:

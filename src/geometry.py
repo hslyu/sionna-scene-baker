@@ -16,6 +16,13 @@ try:
 except ImportError:  # pragma: no cover
     mapbox_earcut = None
 
+try:
+    from shapely.geometry import GeometryCollection, LineString, MultiPolygon, Polygon
+    from shapely.ops import unary_union
+except ImportError:  # pragma: no cover
+    GeometryCollection = LineString = MultiPolygon = Polygon = None
+    unary_union = None
+
 Point2 = tuple[float, float]
 Point3 = tuple[float, float, float]
 Face = tuple[int, int, int]
@@ -68,6 +75,21 @@ ROAD_GROUPS = {
     "steps": "paths_steps",
     "path": "paths_footway",
 }
+
+ROAD_GROUP_PRIORITY = (
+    "roads_trunk",
+    "roads_primary",
+    "roads_secondary",
+    "roads_tertiary",
+    "roads_residential",
+    "roads_unclassified",
+    "roads_service",
+    "roads_pedestrian",
+    "paths_cycleway",
+    "paths_footway",
+    "paths_steps",
+    "roads_track",
+)
 
 LEVEL_HEIGHT = 3.0
 ONE_LEVEL_BUILDING_AREA = 20.0
@@ -143,6 +165,7 @@ def build_scene_meshes(
     road_cutouts = road_cutout_segments(osm, projection)
     parent_part_base_heights = building_part_base_heights(osm, projection)
     building_way_ids: set[str] = set()
+    road_lines: dict[str, list[tuple[list[Point2], float, bool]]] = {}
     for relation in osm.relations:
         relation_polygons = relation_polygons_with_holes(osm, relation, projection)
         if is_building(relation.tags):
@@ -196,6 +219,10 @@ def build_scene_meshes(
                     ground_bounds,
                     terrain_grid_size,
                 )
+        elif is_pedestrian_area_tags(relation.tags):
+            target = "map_osm_areas_steps" if relation.tags.get("highway") == "steps" else "map_osm_areas_pedestrian"
+            for polygon, holes in relation_polygons:
+                add_flat_polygon(meshes[target], polygon, area_z, holes, terrain=terrain)
 
     for way in osm.ways.values():
         points = way_points(osm, way, projection)
@@ -248,16 +275,9 @@ def build_scene_meshes(
         elif way.tags.get("highway") in ROAD_GROUPS:
             group = f"map_osm_{ROAD_GROUPS[way.tags['highway']]}"
             width = parse_meters(way.tags.get("width"), ROAD_WIDTHS[way.tags["highway"]])
-            add_line_strip(
-                meshes[group],
-                points,
-                width=width,
-                z=road_z,
-                closed=way.is_closed,
-                terrain=terrain,
-                max_segment_length=road_max_segment_length,
-            )
+            road_lines.setdefault(group, []).append((points, width, way.is_closed))
 
+    add_road_surfaces(meshes, road_lines, road_z, terrain, road_max_segment_length)
     if terrain is None:
         add_ground(meshes["Plane"], osm, projection, z=ground_z, min_half_width=min_ground_half_width)
     else:
@@ -285,6 +305,7 @@ def is_vegetation(tags: dict[str, str]) -> bool:
     return (
         tags.get("natural") in {"tree", "tree_row", "shrubbery", "heath", "grassland", "scrub"}
         or tags.get("landuse") in {"grass", "shrubs", "flowerbed"}
+        or tags.get("leisure") == "pitch"
     )
 
 
@@ -297,7 +318,11 @@ def is_park_area(tags: dict[str, str]) -> bool:
 
 
 def is_pedestrian_area(way: Way) -> bool:
-    return way.is_closed and way.tags.get("highway") in {"pedestrian", "steps"} and way.tags.get("area") == "yes"
+    return way.is_closed and is_pedestrian_area_tags(way.tags)
+
+
+def is_pedestrian_area_tags(tags: dict[str, str]) -> bool:
+    return tags.get("highway") in {"pedestrian", "steps"} and tags.get("area") == "yes"
 
 
 def way_points(osm: OsmData, way: Way, projection: LocalProjection) -> list[Point2]:
@@ -990,6 +1015,100 @@ def cross2(a: Point2, b: Point2, c: Point2) -> float:
     return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
 
 
+def add_road_surfaces(
+    meshes: dict[str, Mesh],
+    road_lines: dict[str, list[tuple[list[Point2], float, bool]]],
+    z: float,
+    terrain: TerrainModel | None,
+    max_segment_length: float | None,
+) -> None:
+    if LineString is None or unary_union is None:
+        for group, lines in road_lines.items():
+            for points, width, closed in lines:
+                add_line_strip(
+                    meshes[group],
+                    points,
+                    width=width,
+                    z=z,
+                    closed=closed,
+                    terrain=terrain,
+                    max_segment_length=max_segment_length,
+                )
+        return
+
+    group_geometries = {}
+    for group, lines in road_lines.items():
+        geometries = []
+        for points, width, closed in lines:
+            geometry = road_buffer_geometry(points, width, closed, max_segment_length)
+            if geometry is not None and not geometry.is_empty:
+                geometries.append(geometry)
+        if geometries:
+            group_geometries[group] = unary_union(geometries)
+
+    accumulated = None
+    for group in road_group_order(group_geometries):
+        geometry = group_geometries[group]
+        if accumulated is not None and not accumulated.is_empty:
+            geometry = geometry.difference(accumulated)
+        add_shapely_geometry(meshes[group], geometry, z, terrain)
+        accumulated = group_geometries[group] if accumulated is None else unary_union([accumulated, group_geometries[group]])
+
+
+def road_group_order(group_geometries) -> list[str]:
+    ordered = [f"map_osm_{group}" for group in ROAD_GROUP_PRIORITY if f"map_osm_{group}" in group_geometries]
+    ordered.extend(sorted(group for group in group_geometries if group not in ordered))
+    return ordered
+
+
+def road_buffer_geometry(
+    points: list[Point2],
+    width: float,
+    closed: bool,
+    max_segment_length: float | None,
+):
+    clean = clean_ring(points) if closed else remove_near_duplicates(points)
+    if len(clean) < 2:
+        return None
+    if max_segment_length is not None and max_segment_length > 0.0:
+        clean = densify_polyline(clean, closed=closed, max_segment_length=max_segment_length)
+    line_points = clean + ([clean[0]] if closed and not close(clean[0], clean[-1]) else [])
+    if len(line_points) < 2:
+        return None
+    return LineString(line_points).buffer(width * 0.5, cap_style=2, join_style=2, mitre_limit=4.0)
+
+
+def add_shapely_geometry(
+    mesh: Mesh,
+    geometry,
+    z: float,
+    terrain: TerrainModel | None,
+) -> None:
+    for polygon in shapely_polygons(geometry):
+        outer = [(float(x), float(y)) for x, y in list(polygon.exterior.coords)[:-1]]
+        holes = [
+            [(float(x), float(y)) for x, y in list(ring.coords)[:-1]]
+            for ring in polygon.interiors
+        ]
+        if len(outer) >= 3:
+            add_buffer_polygon(mesh, outer, holes, z, terrain)
+
+
+def shapely_polygons(geometry):
+    if geometry is None or geometry.is_empty:
+        return []
+    if Polygon is not None and isinstance(geometry, Polygon):
+        return [geometry]
+    if MultiPolygon is not None and isinstance(geometry, MultiPolygon):
+        return list(geometry.geoms)
+    if GeometryCollection is not None and isinstance(geometry, GeometryCollection):
+        polygons = []
+        for part in geometry.geoms:
+            polygons.extend(shapely_polygons(part))
+        return polygons
+    return []
+
+
 def add_line_strip(
     mesh: Mesh,
     points: list[Point2],
@@ -1000,10 +1119,64 @@ def add_line_strip(
     terrain: TerrainModel | None = None,
     max_segment_length: float | None = None,
 ) -> None:
-    clean = clean_ring(points) if closed else points
+    clean = clean_ring(points) if closed else remove_near_duplicates(points)
     if len(clean) < 2:
         return
-    half = width * 0.5
+    if max_segment_length is not None and max_segment_length > 0.0:
+        clean = densify_polyline(clean, closed=closed, max_segment_length=max_segment_length)
+    add_segment_rectangles(mesh, clean, width * 0.5, z, terrain, max_segment_length, closed)
+
+
+def add_buffer_polygon(
+    mesh: Mesh,
+    polygon: list[Point2],
+    holes: list[list[Point2]],
+    z: float,
+    terrain: TerrainModel | None,
+) -> None:
+    clean_holes = [ensure_cw(clean_ring(hole)) for hole in holes]
+    triangles = triangulate_polygon(ensure_ccw(clean_ring(polygon)), clean_holes)
+    if not triangles:
+        return
+    for triangle in triangles:
+        a, b, c = triangle
+        mesh.add_triangle(point3(a, z, terrain), point3(b, z, terrain), point3(c, z, terrain))
+
+
+def densify_polyline(points: list[Point2], *, closed: bool, max_segment_length: float) -> list[Point2]:
+    densified: list[Point2] = []
+    pairs = list(zip(points, points[1:] + ([points[0]] if closed else [])))
+    for p0, p1 in pairs:
+        if not densified:
+            densified.append(p0)
+        length = edge_length(p0, p1)
+        steps = max(1, math.ceil(length / max_segment_length))
+        for step in range(1, steps + 1):
+            if closed and p1 == points[0] and step == steps:
+                continue
+            densified.append(lerp_point(p0, p1, step / steps))
+    return remove_near_duplicates(densified)
+
+
+def remove_near_duplicates(points: list[Point2]) -> list[Point2]:
+    cleaned = []
+    for point in points:
+        if not cleaned or not close(cleaned[-1], point):
+            cleaned.append(point)
+    if len(cleaned) > 1 and close(cleaned[0], cleaned[-1]):
+        cleaned.pop()
+    return cleaned
+
+
+def add_segment_rectangles(
+    mesh: Mesh,
+    clean: list[Point2],
+    half: float,
+    z: float,
+    terrain: TerrainModel | None,
+    max_segment_length: float | None,
+    closed: bool,
+) -> None:
     segments = zip(clean, clean[1:] + ([clean[0]] if closed else []))
     for p0, p1 in segments:
         dx = p1[0] - p0[0]

@@ -26,25 +26,15 @@ python3 build_sionna_scene.py <lat_min> <lat_max> <lon_min> <lon_max> [terrain]
 ```python
 import scenebaker
 
-scene = scenebaker.load_scene(
-    # lat_min, lat_max, lon_min, lon_max
-    30.2816, 30.2895, -97.7428, -97.7338,
-    terrain=True,
-)
+# load_scene(lat_min, lat_max, lon_min, lon_max, terrain=True) -> sionna.rt.Scene
+scene = scenebaker.load_scene(30.2816, 30.2895, -97.7428, -97.7338, terrain=True)
 
-# scene XY bounds
-x_min, x_max, y_min, y_max = scenebaker.bounds(scene)
-
+x_min, x_max, y_min, y_max = scenebaker.bounds(scene) # scene XY bounds
 x, y = 0.5 * (x_min + x_max), 0.5 * (y_min + y_max)
 
-# ground/terrain height
-ground_z = scenebaker.height(scene, x, y)
-
-# roof height if building exists, otherwise ground height
-top_z = scenebaker.height(scene, x, y, buildings=True)
-
-# true if obstacle is present
-blocked = scenebaker.occupied(scene, x, y)
+ground_z = scenebaker.height(scene, x, y) # ground height
+top_z = scenebaker.height(scene, x, y, buildings=True) # roof or ground height
+blocked = scenebaker.occupied(scene, x, y) # true if obstacle
 ```
 
 `scenebaker.load_scene(...)` returns the same kind of object as

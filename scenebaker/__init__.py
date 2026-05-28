@@ -1,4 +1,4 @@
-"""Utilities for Sionna scene conversion and validation."""
+"""Public SionnaSceneBaker API."""
 
 __all__ = [
     "build_scene",
@@ -12,11 +12,11 @@ __all__ = [
 
 def __getattr__(name: str):
     if name in {"build_scene", "build_scene_from_bbox", "load_scene"}:
-        from . import cli
+        from src import cli
 
         return getattr(cli, name)
     if name in {"bounds", "height", "occupied"}:
-        from . import scene_utils
+        from src import scene_utils
 
         return getattr(scene_utils, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

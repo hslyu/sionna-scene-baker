@@ -21,6 +21,36 @@ entry point is:
 python3 build_sionna_scene.py <lat_min> <lat_max> <lon_min> <lon_max> [terrain]
 ```
 
+## Usage
+
+```python
+import scenebaker
+
+scene = scenebaker.load_scene(
+    # lat_min, lat_max, lon_min, lon_max
+    30.2816, 30.2895, -97.7428, -97.7338,
+    terrain=True,
+)
+
+# scene XY bounds
+x_min, x_max, y_min, y_max = scenebaker.bounds(scene)
+
+x, y = 0.5 * (x_min + x_max), 0.5 * (y_min + y_max)
+
+# ground/terrain height
+ground_z = scenebaker.height(scene, x, y)
+
+# roof height if building exists, otherwise ground height
+top_z = scenebaker.height(scene, x, y, buildings=True)
+
+# true if obstacle is present
+blocked = scenebaker.occupied(scene, x, y)
+```
+
+`scenebaker.load_scene(...)` returns the same kind of object as
+`sionna.rt.load_scene(...)`. Generated XML and meshes are kept in a temporary
+directory by default; pass `out_dir` if you want to inspect or reuse them.
+
 ## Clone and Pull Data
 
 Files under `data/` are stored with Git LFS. Install Git LFS before cloning:

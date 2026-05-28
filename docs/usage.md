@@ -11,6 +11,34 @@ Install the Python dependencies:
 python3 -m pip install -r requirements.txt
 ```
 
+Load a scene directly from Python:
+
+```python
+import scenebaker
+
+scene = scenebaker.load_scene(
+    30.2816, 30.2895, -97.7428, -97.7338,
+    terrain=True,
+)
+```
+
+`scenebaker.load_scene(...)` builds the Sionna-ready XML/PLY files internally
+and returns the result of `sionna.rt.load_scene(..., merge_shapes=False)`.
+Generated files are temporary unless `out_dir=Path("data/<place>")` is passed.
+
+Simple geometry queries are available on scenes loaded through `scenebaker`:
+
+```python
+x_min, x_max, y_min, y_max = scenebaker.bounds(scene)
+ground_z = scenebaker.height(scene, x, y)
+top_z = scenebaker.height(scene, x, y, buildings=True)
+blocked = scenebaker.occupied(scene, x, y)
+```
+
+`occupied(...)` ignores ground and vegetation surfaces, and returns `True`
+only when another surface is at least `2.0m` above the local ground. Pass
+`height=...` to change that threshold.
+
 Generate a flat scene directly from a latitude/longitude bounding box:
 
 ```bash

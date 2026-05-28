@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 import shutil
 import struct
+import tempfile
+import weakref
 from pathlib import Path
 
 from .geometry import (
@@ -24,6 +26,7 @@ from .osm_reader import read_osm
 from .overpass import DEFAULT_OVERPASS_URL, download_osm
 from .ply import write_binary_ply
 from .projection import projection_from_bounds
+from .scene_utils import register
 from .terrain import TerrainModel, ensure_hgt_tiles
 
 
@@ -223,35 +226,17 @@ def build(args: argparse.Namespace) -> None:
 
 
 def bbox(args: argparse.Namespace) -> None:
-    south, north = sorted((args.lat_min, args.lat_max))
-    west, east = sorted((args.lon_min, args.lon_max))
-    terrain_enabled = args.terrain or args.terrain_mode == "terrain"
-    out_dir = args.out_dir
-    osm_path = out_dir / "osm" / "map.osm"
-    mesh_dir = out_dir / ("meshes_python_terrain" if terrain_enabled else "meshes_python")
-    out_xml = out_dir / ("python_scene_terrain.xml" if terrain_enabled else "python_scene.xml")
-    terrain_dir = args.terrain_dir or out_dir / "terrain"
-
-    if not args.reuse_osm or not osm_path.exists():
-        print(f"Downloading OSM to {osm_path}")
-        download_osm(
-            osm_path,
-            south=south,
-            west=west,
-            north=north,
-            east=east,
-            overpass_url=args.overpass_url,
-            timeout=args.overpass_timeout,
-        )
-    else:
-        print(f"Using existing OSM: {osm_path}")
-
-    build_scene(
-        osm_path=osm_path,
-        out_xml=out_xml,
-        mesh_dir=mesh_dir,
-        terrain_enabled=terrain_enabled,
-        terrain_dir=terrain_dir,
+    build_scene_from_bbox(
+        args.lat_min,
+        args.lat_max,
+        args.lon_min,
+        args.lon_max,
+        terrain=args.terrain or args.terrain_mode == "terrain",
+        out_dir=args.out_dir,
+        reuse_osm=args.reuse_osm,
+        overpass_url=args.overpass_url,
+        overpass_timeout=args.overpass_timeout,
+        terrain_dir=args.terrain_dir,
         clean=args.clean,
         ground_z=args.ground_z,
         road_z=args.road_z,
@@ -263,6 +248,161 @@ def bbox(args: argparse.Namespace) -> None:
         terrain_grid_size=args.terrain_grid_size,
         terrain_vegetation_clearance=args.terrain_vegetation_clearance,
     )
+
+
+def build_scene_from_bbox(
+    lat_min: float,
+    lat_max: float,
+    lon_min: float,
+    lon_max: float,
+    *,
+    terrain: bool | str = False,
+    out_dir: Path = Path("data/custom"),
+    reuse_osm: bool = False,
+    overpass_url: str = DEFAULT_OVERPASS_URL,
+    overpass_timeout: int = 180,
+    terrain_dir: Path | None = None,
+    clean: bool = True,
+    ground_z: float = -0.8,
+    road_z: float = 0.3,
+    area_z: float = 0.0,
+    water_z: float = 0.2,
+    vegetation_z: float = 0.0,
+    vegetation_height: float = 0.5,
+    min_ground_half_width: float = 700.0,
+    terrain_grid_size: int = 96,
+    terrain_vegetation_clearance: float = 0.0,
+) -> Path:
+    south, north = sorted((lat_min, lat_max))
+    west, east = sorted((lon_min, lon_max))
+    terrain_enabled = terrain == "terrain" or terrain is True
+    out_dir = Path(out_dir)
+    osm_path = out_dir / "osm" / "map.osm"
+    mesh_dir = out_dir / ("meshes_python_terrain" if terrain_enabled else "meshes_python")
+    out_xml = out_dir / ("python_scene_terrain.xml" if terrain_enabled else "python_scene.xml")
+    terrain_dir = Path(terrain_dir) if terrain_dir is not None else out_dir / "terrain"
+
+    if not reuse_osm or not osm_path.exists():
+        print(f"Downloading OSM to {osm_path}")
+        download_osm(
+            osm_path,
+            south=south,
+            west=west,
+            north=north,
+            east=east,
+            overpass_url=overpass_url,
+            timeout=overpass_timeout,
+        )
+    else:
+        print(f"Using existing OSM: {osm_path}")
+
+    build_scene(
+        osm_path=osm_path,
+        out_xml=out_xml,
+        mesh_dir=mesh_dir,
+        terrain_enabled=terrain_enabled,
+        terrain_dir=terrain_dir,
+        clean=clean,
+        ground_z=ground_z,
+        road_z=road_z,
+        area_z=area_z,
+        water_z=water_z,
+        vegetation_z=vegetation_z,
+        vegetation_height=vegetation_height,
+        min_ground_half_width=min_ground_half_width,
+        terrain_grid_size=terrain_grid_size,
+        terrain_vegetation_clearance=terrain_vegetation_clearance,
+    )
+    return out_xml
+
+
+def load_scene(
+    lat_min: float,
+    lat_max: float,
+    lon_min: float,
+    lon_max: float,
+    terrain: bool | str = False,
+    *,
+    out_dir: Path | None = None,
+    reuse_osm: bool = False,
+    overpass_url: str = DEFAULT_OVERPASS_URL,
+    overpass_timeout: int = 180,
+    merge_shapes: bool = False,
+    terrain_dir: Path | None = None,
+    clean: bool = True,
+    ground_z: float = -0.8,
+    road_z: float = 0.3,
+    area_z: float = 0.0,
+    water_z: float = 0.2,
+    vegetation_z: float = 0.0,
+    vegetation_height: float = 0.5,
+    min_ground_half_width: float = 700.0,
+    terrain_grid_size: int = 96,
+    terrain_vegetation_clearance: float = 0.0,
+):
+    try:
+        from sionna.rt import load_scene as sionna_load_scene
+    except ImportError as exc:  # pragma: no cover - depends on optional Sionna install
+        raise ImportError("scenebaker.load_scene requires sionna to be installed") from exc
+
+    temp_out_dir = None
+    if out_dir is None:
+        temp_out_dir = Path(tempfile.mkdtemp(prefix="sionna-scene-baker-"))
+        out_dir = temp_out_dir
+
+    try:
+        scene_xml = build_scene_from_bbox(
+            lat_min,
+            lat_max,
+            lon_min,
+            lon_max,
+            terrain=terrain,
+            out_dir=out_dir,
+            reuse_osm=reuse_osm,
+            overpass_url=overpass_url,
+            overpass_timeout=overpass_timeout,
+            terrain_dir=terrain_dir,
+            clean=clean,
+            ground_z=ground_z,
+            road_z=road_z,
+            area_z=area_z,
+            water_z=water_z,
+            vegetation_z=vegetation_z,
+            vegetation_height=vegetation_height,
+            min_ground_half_width=min_ground_half_width,
+            terrain_grid_size=terrain_grid_size,
+            terrain_vegetation_clearance=terrain_vegetation_clearance,
+        )
+        scene = sionna_load_scene(str(scene_xml), merge_shapes=merge_shapes)
+        register(scene, scene_xml)
+    except Exception:
+        if temp_out_dir is not None:
+            shutil.rmtree(temp_out_dir, ignore_errors=True)
+        raise
+    if temp_out_dir is not None:
+        _cleanup_with_scene(scene, temp_out_dir)
+    return scene
+
+
+def _cleanup_with_scene(scene, path: Path) -> None:
+    try:
+        weakref.finalize(scene, shutil.rmtree, path, ignore_errors=True)
+    except TypeError:
+        try:
+            scene._scenebaker_temp_dir = _TempSceneFiles(path)
+        except AttributeError:
+            pass
+
+
+class _TempSceneFiles:
+    def __init__(self, path: Path) -> None:
+        self.path = path
+
+    def __del__(self) -> None:
+        try:
+            shutil.rmtree(self.path, ignore_errors=True)
+        except Exception:
+            pass
 
 
 def add_build_options(parser: argparse.ArgumentParser) -> None:

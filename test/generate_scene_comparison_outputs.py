@@ -13,10 +13,10 @@ import numpy as np
 
 PLACES = ("postech", "unist", "snu", "ut")
 VARIANTS = {
-    "blender_flat": "{place}_sionna_no_terrain.xml",
-    "python_flat": "python_scene.xml",
-    "blender_terrain": "{place}_sionna_terrain.xml",
-    "python_terrain": "python_scene_terrain.xml",
+    "blender_flat": "{place}_blender_no_terrain.xml",
+    "python_flat": "{place}_scenebaker_no_terrain.xml",
+    "blender_terrain": "{place}_blender_terrain.xml",
+    "python_terrain": "{place}_scenebaker_terrain.xml",
 }
 
 

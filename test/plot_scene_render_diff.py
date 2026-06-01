@@ -5,7 +5,7 @@ Render two Sionna scenes with identical camera parameters and plot a difference 
 Run in an environment with Sionna RT installed:
 
     python3 test/plot_scene_render_diff.py \
-      data/snu/snu_sionna_terrain.xml data/snu/python_scene_terrain.xml \
+      data/snu/snu_blender_terrain.xml data/snu/snu_scenebaker_terrain.xml \
       --reference-render data/scene_comparison/snu/blender_terrain_scene.png \
       --candidate-render data/scene_comparison/snu/python_terrain_scene.png \
       --diff-render data/scene_comparison/snu/terrain_render_difference.png

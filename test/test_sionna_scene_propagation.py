@@ -4,7 +4,7 @@ Smoke-test radio propagation through a generated Sionna RT scene.
 
 Run from the repository root:
 
-    python3 test/test_sionna_scene_propagation.py data/<place>/python_scene.xml
+    python3 test/test_sionna_scene_propagation.py data/<place>/<place>_scenebaker_no_terrain.xml
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ def format_vec(values: list[float]) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("scene_xml", type=Path, nargs="?", default=Path("data/custom/python_scene.xml"))
+    parser.add_argument("scene_xml", type=Path, nargs="?", default=Path("data/custom/custom_scenebaker_no_terrain.xml"))
     parser.add_argument("--frequency", type=float, default=3.5e9)
     parser.add_argument("--tx", type=float, nargs=3, default=[-120.0, 120.0, 25.0])
     parser.add_argument("--rx", type=float, nargs=3, default=[120.0, 120.0, 1.5])

@@ -23,7 +23,7 @@ class PublicApiTest(unittest.TestCase):
         fake_rt.load_scene = fake_load_scene
 
         with tempfile.TemporaryDirectory() as tmp:
-            xml_path = Path(tmp) / "python_scene_terrain.xml"
+            xml_path = Path(tmp) / "custom_scenebaker_terrain.xml"
             with patch.dict(sys.modules, {"sionna": fake_sionna, "sionna.rt": fake_rt}):
                 with patch("src.cli.build_scene_from_bbox", return_value=xml_path) as build:
                     scene = scenebaker.load_scene(

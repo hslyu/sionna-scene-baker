@@ -4,11 +4,11 @@ Smoke-test a converted Sionna RT scene.
 
 Run in an environment with Sionna RT installed:
 
-    python3 test/test_sionna_scene_render.py data/<place>/python_scene.xml
+    python3 test/test_sionna_scene_render.py data/<place>/<place>_scenebaker_no_terrain.xml
 
 For headless servers, skip the interactive preview:
 
-    python3 test/test_sionna_scene_render.py data/<place>/python_scene.xml --no-preview
+    python3 test/test_sionna_scene_render.py data/<place>/<place>_scenebaker_no_terrain.xml --no-preview
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ from pathlib import Path
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("scene_xml", type=Path, nargs="?", default=Path("data/custom/python_scene.xml"))
+    parser.add_argument("scene_xml", type=Path, nargs="?", default=Path("data/custom/custom_scenebaker_no_terrain.xml"))
     parser.add_argument("--frequency", type=float, default=3.5e9)
     parser.add_argument("--no-preview", action="store_true")
     parser.add_argument("--render", type=Path, default=Path("sionna_scene_render.png"))

@@ -5,7 +5,7 @@ Compare propagation results for two Sionna scenes over random TX/RX pairs.
 Example:
 
     python3 test/compare_random_propagation.py \
-      data/ut/ut_sionna_no_terrain.xml data/ut/python_scene.xml \
+      data/ut/ut_blender_no_terrain.xml data/ut/ut_scenebaker_no_terrain.xml \
       --pairs 25 --seed 7
 """
 

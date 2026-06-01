@@ -277,9 +277,11 @@ def build_scene_from_bbox(
     west, east = sorted((lon_min, lon_max))
     terrain_enabled = terrain == "terrain" or terrain is True
     out_dir = Path(out_dir)
+    scene_prefix = out_dir.name or "scene"
+    terrain_suffix = "terrain" if terrain_enabled else "no_terrain"
     osm_path = out_dir / "osm" / "map.osm"
     mesh_dir = out_dir / ("meshes_python_terrain" if terrain_enabled else "meshes_python")
-    out_xml = out_dir / ("python_scene_terrain.xml" if terrain_enabled else "python_scene.xml")
+    out_xml = out_dir / f"{scene_prefix}_scenebaker_{terrain_suffix}.xml"
     terrain_dir = Path(terrain_dir) if terrain_dir is not None else out_dir / "terrain"
 
     if not reuse_osm or not osm_path.exists():
@@ -426,9 +428,9 @@ def main() -> None:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     build_parser = subparsers.add_parser("build")
-    build_parser.add_argument("--osm", type=Path, default=Path("data/osm/map.osm"))
-    build_parser.add_argument("--out-xml", type=Path, default=Path("data/python_scene.xml"))
-    build_parser.add_argument("--out-mesh-dir", type=Path, default=Path("data/meshes_python"))
+    build_parser.add_argument("--osm", type=Path, default=Path("data/custom/osm/map.osm"))
+    build_parser.add_argument("--out-xml", type=Path, default=Path("data/custom/custom_scenebaker_no_terrain.xml"))
+    build_parser.add_argument("--out-mesh-dir", type=Path, default=Path("data/custom/meshes_python"))
     add_build_options(build_parser)
     build_parser.set_defaults(func=build)
 

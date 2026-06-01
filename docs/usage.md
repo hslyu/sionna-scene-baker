@@ -80,8 +80,8 @@ Overpass download.
 The command writes:
 
 - `data/<place>/osm/map.osm`: OSM XML downloaded from Overpass.
-- `data/<place>/python_scene.xml`: flat Sionna-ready Mitsuba XML.
-- `data/<place>/python_scene_terrain.xml`: terrain-enabled Sionna-ready
+- `data/<place>/<place>_scenebaker_no_terrain.xml`: flat Sionna-ready Mitsuba XML.
+- `data/<place>/<place>_scenebaker_terrain.xml`: terrain-enabled Sionna-ready
   Mitsuba XML.
 - `data/<place>/meshes_python*/`: generated PLY meshes for buildings, roads, paths,
   water, vegetation, pedestrian areas, and ground.
@@ -91,7 +91,7 @@ To build from an existing OSM extract without downloading from Overpass:
 ```bash
 python3 -m src.cli build \
   --osm data/ut/osm/map.osm \
-  --out-xml data/ut/python_scene.xml \
+  --out-xml data/ut/ut_scenebaker_no_terrain.xml \
   --out-mesh-dir data/ut/meshes_python
 ```
 
@@ -149,13 +149,13 @@ reference Sionna XMLs for comparison:
 
 ```bash
 python3 blender/convert_scene_for_sionna.py \
-  data/ut/ut_no_terrain.xml \
-  data/ut/ut_sionna_no_terrain.xml \
+  data/ut/ut_raw_blender_no_terrain.xml \
+  data/ut/ut_blender_no_terrain.xml \
   --mesh-out-dir data/ut/meshes_sionna_no_terrain
 
 python3 blender/convert_scene_for_sionna.py \
-  data/ut/ut_terrain.xml \
-  data/ut/ut_sionna_terrain.xml \
+  data/ut/ut_raw_blender_terrain.xml \
+  data/ut/ut_blender_terrain.xml \
   --mesh-out-dir data/ut/meshes_sionna_terrain
 ```
 
@@ -166,8 +166,8 @@ Compare a generated scene against a Blender-derived reference:
 
 ```bash
 python3 src/compare.py \
-  data/ut/ut_sionna_no_terrain.xml \
-  data/ut/python_scene.xml \
+  data/ut/ut_blender_no_terrain.xml \
+  data/ut/ut_scenebaker_no_terrain.xml \
   --json data/ut/python_scene_compare.json
 ```
 
@@ -180,20 +180,20 @@ Python implementation are the source of truth for the repository workflow.
 Run in an environment with Sionna RT installed:
 
 ```bash
-python3 test/test_sionna_scene_render.py data/<place>/python_scene.xml --no-preview --render python_scene_render.png
+python3 test/test_sionna_scene_render.py data/<place>/<place>_scenebaker_no_terrain.xml --no-preview --render python_scene_render.png
 ```
 
 For the place-scoped UT scenes:
 
 ```bash
-python3 test/test_sionna_scene_render.py data/ut/python_scene.xml --no-preview --render ut_python_scene_render.png
-python3 test/test_sionna_scene_render.py data/ut/python_scene_terrain.xml --no-preview --render ut_python_scene_terrain_render.png
+python3 test/test_sionna_scene_render.py data/ut/ut_scenebaker_no_terrain.xml --no-preview --render ut_python_scene_render.png
+python3 test/test_sionna_scene_render.py data/ut/ut_scenebaker_terrain.xml --no-preview --render ut_python_scene_terrain_render.png
 ```
 
 Use interactive preview when a display is available:
 
 ```bash
-python3 test/test_sionna_scene_render.py data/<place>/python_scene.xml
+python3 test/test_sionna_scene_render.py data/<place>/<place>_scenebaker_no_terrain.xml
 ```
 
 ## Test Propagation
@@ -201,7 +201,7 @@ python3 test/test_sionna_scene_render.py data/<place>/python_scene.xml
 Run on a generated scene:
 
 ```bash
-python3 test/test_sionna_scene_propagation.py data/<place>/python_scene.xml
+python3 test/test_sionna_scene_propagation.py data/<place>/<place>_scenebaker_no_terrain.xml
 ```
 
 The default transmitter and receiver are placed inside the generated scene
@@ -216,16 +216,16 @@ prints delay/gain summaries, and writes `sionna_scene_paths.png`.
 For the place-scoped UT scenes:
 
 ```bash
-python3 test/test_sionna_scene_propagation.py data/ut/python_scene.xml --render ut_python_scene_paths.png
-python3 test/test_sionna_scene_propagation.py data/ut/python_scene_terrain.xml --render ut_python_scene_terrain_paths.png
+python3 test/test_sionna_scene_propagation.py data/ut/ut_scenebaker_no_terrain.xml --render ut_python_scene_paths.png
+python3 test/test_sionna_scene_propagation.py data/ut/ut_scenebaker_terrain.xml --render ut_python_scene_terrain_paths.png
 ```
 
 For optional randomized reference-vs-candidate propagation checks:
 
 ```bash
 python3 test/compare_random_propagation.py \
-  data/ut/ut_sionna_no_terrain.xml \
-  data/ut/python_scene.xml \
+  data/ut/ut_blender_no_terrain.xml \
+  data/ut/ut_scenebaker_no_terrain.xml \
   --pairs 25 \
   --seed 11
 ```

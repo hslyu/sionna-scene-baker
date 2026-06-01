@@ -6,6 +6,10 @@ __pycache__/
 *_paths.png
 *_diff.png
 sionna_scene_render.png
+tmp/
+.tmp/
+docs/
+test/
 
 # Local editor/environment files
 .DS_Store

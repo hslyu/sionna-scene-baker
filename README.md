@@ -73,7 +73,7 @@ git lfs pull
 
 ## Citation
 
-If this repository is useful for your work, cite this paper!
+If this repository is useful for your work, cite [this paper](https://arxiv.org/abs/2608.04546)!
 
 ```bibtex
 @misc{lyu2026-scenebaker,

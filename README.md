@@ -73,13 +73,16 @@ git lfs pull
 
 ## Citation
 
-If this repository is useful for your work, please cite it 🙏
+If this repository is useful for your work, cite this paper!
 
 ```bibtex
-@software{sionna_scene_baker,
-  title = {Pythonic Sionna Scene Builder},
-  author = {Lyu, Hyeonsu},
-  url = {https://github.com/hslyu/sionna-scene-baker},
-  year = {2026}
+@misc{lyu2026-scenebaker,
+      title={SceneBaker: Radio-Ready Scene Generation for Sionna Ray-Tracing}, 
+      author={Hyeonsu Lyu and Minwoo Kim and Sojeong Park and Hyun Jong Yang},
+      year={2026},
+      eprint={2608.04546},
+      archivePrefix={arXiv},
+      primaryClass={eess.SP},
+      url={https://arxiv.org/abs/2608.04546}, 
 }
 ```
